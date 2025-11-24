@@ -95,8 +95,8 @@ def print_recovery_kit(shares: List[List[str]], vault_id: str, k: int) -> str:
     output.append(f"Threshold: Need {k} of {len(shares)} shares to recover")
     output.append("\nIMPORTANT:")
     output.append("- Print this document and store shares in separate secure locations")
-    output.append("- Any {k} shares can recover your vault if you forget the master password")
-    output.append("- Losing fewer than {k} shares is okay")
+    output.append(f"- Any {k} shares can recover your vault if you forget the master password")
+    output.append(f"- Losing fewer than {k} shares is okay")
     output.append("- NEVER store all shares together!\n")
     output.append("=" * 70)
 

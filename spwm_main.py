@@ -393,7 +393,7 @@ def cmd_recovery_create(vault, vault_path):
         k, n = 3, 5
     out = input("Output file [recovery_kit.txt]: ").strip() or "recovery_kit.txt"
     try:
-        shares = generate_recovery_shares(vault.recovery_key, k, n)
+        shares = generate_recovery_shares(vault.vault_key, k, n)
         kit = print_recovery_kit(shares, vault.vault_id, k)
         with open(out, 'w') as f:
             f.write(kit)
