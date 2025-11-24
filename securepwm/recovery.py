@@ -104,7 +104,7 @@ def print_recovery_kit(shares: List[List[str]], vault_id: str, k: int) -> str:
         output.append(f"\n\nSHARE {i} of {len(shares)}")
         output.append("-" * 70)
         # Join mnemonic words with spaces
-        output.append(" ".join(share))
+        output.append(share)
         output.append("\n" + "-" * 70)
 
     output.append("\n\nTo recover:")

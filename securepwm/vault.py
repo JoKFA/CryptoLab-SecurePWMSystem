@@ -518,7 +518,138 @@ class Vault:
             (ts, action, payload, prev_mac, mac)
         )
         self.conn.commit()
-
+    
+    def recover_vault_with_shares(self, recovery_key: bytes, new_master_password: str):
+        self.conn = sqlite3.connect(self.db_path)
+        self.conn.row_factory = sqlite3.Row
+        self.conn.executescript(PRAGMAS)
+        
+         # Verify recovery key is correct by checking audit log
+        try:
+            if not self.verify_audit_log():
+                raise Exception("Recovery key invalid: audit log verification failed")
+        except Exception as e:
+            raise Exception(f"Recovery key invalid or vault corrupted: {e}")
+        
+        # Recovery key is valid! Now re-key the vault with new master password
+        print("\n✓ Recovery key verified. Re-encrypting vault with new master password...")
+        
+        # 1. Decrypt all entries with old keys
+        entries_data = []
+        rows = self.conn.execute(
+            """SELECT id, version, username, site_name, url, category,
+                    key_nonce, key_wrapped, content_nonce, content_ciphertext,
+                    created_at, updated_at, deleted
+            FROM entries"""
+        ).fetchall()
+        
+        for row in rows:
+            try:
+                # Unwrap entry key with old content_key
+                entry_key = crypto.unwrap_entry_key(
+                    self.content_key, row['key_nonce'], row['key_wrapped'],
+                    self.vault_id, row['id'], self.schema_version, row['version']
+                )
+                
+                # Build metadata for AD
+                metadata = {"username": row['username']}
+                if row['site_name']:
+                    metadata["site_name"] = row['site_name']
+                if row['url']:
+                    metadata["url"] = row['url']
+                if row['category']:
+                    metadata["category"] = row['category']
+                
+                # Decrypt content with old entry_key
+                secret = crypto.decrypt_entry_content(
+                    entry_key, row['content_nonce'], row['content_ciphertext'],
+                    self.vault_id, row['id'], row['created_at'], row['updated_at'],
+                    self.schema_version, row['version'], metadata
+                )
+                
+                # Store decrypted data
+                entries_data.append({
+                    'id': row['id'],
+                    'version': row['version'],
+                    'username': row['username'],
+                    'site_name': row['site_name'],
+                    'url': row['url'],
+                    'category': row['category'],
+                    'secret': secret,
+                    'created_at': row['created_at'],
+                    'updated_at': row['updated_at'],
+                    'deleted': row['deleted']
+                })
+            except Exception as e:
+                print(f"WARNING: Failed to decrypt entry {row['id']}: {e}")
+                continue
+        
+        print(f"✓ Successfully decrypted {len(entries_data)} entries")
+        
+        # 2. Generate new salt and derive keys from new master password
+        new_salt = os.urandom(16)
+        new_vault_key = crypto.derive_vault_key(new_master_password, new_salt)
+        new_subkeys = crypto.derive_subkeys(new_vault_key)
+        
+        # 3. Update vault state with new salt
+        self.conn.execute(
+            "UPDATE vault_state SET kdf_salt = ? WHERE id = 1",
+            (new_salt,)
+        )
+        
+        # 4. Re-encrypt all entries with new keys
+        self.vault_key = new_vault_key
+        self.content_key = new_subkeys['content_key']
+        self.audit_key = new_subkeys['audit_key']
+        self.recovery_key = new_subkeys['recovery_key']
+        self.label_key = new_subkeys['label_key']
+        self.salt = new_salt
+        
+        for entry_data in entries_data:
+            # Generate new entry key
+            new_entry_key = crypto.create_entry_key()
+            
+            # Build metadata
+            metadata = {"username": entry_data['username']}
+            if entry_data['site_name']:
+                metadata["site_name"] = entry_data['site_name']
+            if entry_data['url']:
+                metadata["url"] = entry_data['url']
+            if entry_data['category']:
+                metadata["category"] = entry_data['category']
+            
+            # Re-encrypt content with new entry key
+            content_nonce, content_ct = crypto.encrypt_entry_content(
+                new_entry_key, entry_data['secret'],
+                self.vault_id, entry_data['id'],
+                entry_data['created_at'], entry_data['updated_at'],
+                self.schema_version, entry_data['version'], metadata
+            )
+            
+            # Wrap new entry key with new content key
+            key_nonce, key_wrapped = crypto.wrap_entry_key(
+                self.content_key, new_entry_key,
+                self.vault_id, entry_data['id'],
+                self.schema_version, entry_data['version']
+            )
+            
+            # Update database
+            self.conn.execute(
+                """UPDATE entries SET 
+                key_nonce = ?, key_wrapped = ?,
+                content_nonce = ?, content_ciphertext = ?
+                WHERE id = ?""",
+                (key_nonce, key_wrapped, content_nonce, content_ct, entry_data['id'])
+            )
+        
+        self.conn.commit()
+        
+        # 5. Log recovery in audit log
+        self._audit("VAULT_RECOVERY", payload=b"master_password_reset")
+        
+        print(f"✓ Vault re-encrypted with new master password")
+        print(f"✓ Recovery complete! You can now use your new master password.")
+        
     def _require_unlocked(self) -> None:
         """Check that vault is unlocked."""
         if not self.conn or not self.vault_key:

@@ -214,7 +214,7 @@ def cmd_get_entry(vault, vault_path):
         else:
             print("Cancelled.")
     except Exception as e:
-        print(f"ERROR: {e}")
+        print(f"ERROR!! Aborting")
     pause()
     return vault
 
@@ -268,7 +268,7 @@ def cmd_quick_copy(vault, vault_path):
             print("\nERROR: pyperclip not installed. Run: pip install pyperclip")
             print(f"Password: {e['secret'].decode('utf-8')}")
     except Exception as e:
-        print(f"ERROR: {e}")
+        print(f"ERROR!! Aborting")
     pause()
     return vault
 
@@ -347,7 +347,7 @@ def cmd_delete(vault, vault_path):
         # Confirm
         print(f"\nAbout to delete:")
         print(f"  Username: {entry_info['username']}")
-        print(f"  Site: {entry_info['site'] or '-'}")
+        print(f"  Site: {entry_info['site_name'] or '-'}")
         print(f"  ID: {eid}")
         
         confirm = input("\nType 'yes' to confirm: ").strip().lower()
@@ -403,6 +403,99 @@ def cmd_recovery_create(vault, vault_path):
     pause()
     return vault
 
+def cmd_recover(vault_path):
+    """
+    Recover vault using k-of-n Shamir shares and set new master password.
+    """
+    clear_screen()
+    print("=== Recover Vault ===\n")
+    
+    # Check vault exists
+    if not os.path.exists(vault_path):
+        vault_path = choose_vault_path(vault_path)
+        if not os.path.exists(vault_path):
+            print(f"\nERROR: Vault not found at {vault_path}")
+            pause()
+            return None, vault_path
+    
+    print(f"Vault: {vault_path}\n")
+    print("This will recover your vault using Shamir recovery shares.")
+    print("You will need to enter at least k shares from your recovery kit.\n")
+    
+    # Get shares from user
+    shares = []
+    print("Enter recovery shares (one per line).")
+    print("Each share is a list of words separated by spaces.")
+    print("Press Enter on empty line when done.\n")
+    
+    share_num = 1
+    while True:
+        print(f"Share {share_num} (or press Enter to finish): ")
+        share_input = input().strip()
+        
+        if not share_input:
+            break
+        
+        # Split by whitespace to get individual words
+        share_words = share_input.split()
+        
+        # shamir_mnemonic expects each share as a single string, not a list
+        # Join the words back into a single space-separated string
+        share_str = " ".join(share_words)
+        shares.append(share_str)
+        print(f"✓ Share {share_num} accepted ({len(share_words)} words)\n")
+        share_num += 1
+    
+    if len(shares) < 2:
+        print("\nERROR: Need at least 2 shares (typical recovery needs 3-5 shares)")
+        pause()
+        return None, vault_path
+    
+    print(f"\nYou provided {len(shares)} shares. Attempting recovery...")
+    
+    # Combine shares to recover key
+    try:
+        from securepwm.recovery import combine_recovery_shares
+        recovery_key = combine_recovery_shares(shares)
+        print("✓ Recovery key reconstructed from shares!\n")
+    except Exception as e:
+        print(f"\nERROR: Failed to combine shares: {e}")
+        print("Make sure you entered valid shares from the same recovery kit.")
+        pause()
+        return None, vault_path
+    
+    # Get new master password
+    print("Now set a NEW master password for this vault:")
+    while True:
+        pw = getpass.getpass("New master password: ")
+        pw2 = getpass.getpass("Confirm new password: ")
+        if pw != pw2:
+            print("Passwords don't match. Try again.\n")
+            continue
+        if len(pw) < 8:
+            print("Password too short (min 8 characters). Try again.\n")
+            continue
+        break
+    
+    # Perform recovery
+    print("\nRecovering vault and re-encrypting with new password...")
+    vault = Vault(vault_path)
+    try:
+        vault.recover_vault_with_shares(recovery_key, pw)
+        print("\n" + "="*60)
+        print("SUCCESS! Vault recovered and re-encrypted.")
+        print("="*60)
+        print("\nYour old master password is now invalid.")
+        print("Use your NEW master password from now on.")
+        print("\nIMPORTANT: Generate a NEW recovery kit with your new password!")
+        pause()
+        return vault, vault_path
+    except Exception as e:
+        print(f"\nERROR: Recovery failed: {e}")
+        print("The recovery key may be invalid, or the vault may be corrupted.")
+        pause()
+        return None, vault_path
+    
 def cmd_lock(vault):
     clear_screen()
     print("=== Lock Vault ===\n")
@@ -412,29 +505,33 @@ def cmd_lock(vault):
     else:
         print("Not open.")
     pause()
-
+    
+def printMenu(vault, vault_path):
+    print("SecurePWM - Interactive Menu")
+    print("=" * 40)
+    print(f"Vault: {vault_path}")
+    print(f"Status: {'UNLOCKED' if vault else 'LOCKED'}")
+    print("\n 1) Initialize vault")
+    print(" 2) Add entry (manual)")
+    print(" 3) Add entry (generated)")
+    print(" 4) List entries")
+    print(" 5) Get entry (view details)")
+    print(" 6) Quick copy (copy password)")
+    print(" 7) Search entries")
+    print(" 8) Delete entry")
+    print(" 9) Verify audit log")
+    print("10) Create recovery kit")
+    print("11) Recover vault")
+    print("12) Change vault path")
+    print("13) Lock vault")
+    print(" 0) Exit")
+    
 def main_menu():
     vault = None
     vault_path = DEFAULT_VAULT_PATH
     while True:
         clear_screen()
-        print("SecurePWM - Interactive Menu")
-        print("=" * 40)
-        print(f"Vault: {vault_path}")
-        print(f"Status: {'UNLOCKED' if vault else 'LOCKED'}")
-        print("\n 1) Initialize vault")
-        print(" 2) Add entry (manual)")
-        print(" 3) Add entry (generated)")
-        print(" 4) List entries")
-        print(" 5) Get entry (view details)")
-        print(" 6) Quick copy (copy password)")
-        print(" 7) Search entries")
-        print(" 8) Delete entry")
-        print(" 9) Verify audit log")
-        print("10) Create recovery kit")
-        print("11) Change vault path")
-        print("12) Lock vault")
-        print(" 0) Exit")
+        printMenu(vault,vault_path)
         c = input("\n> ").strip()
         if c == '1':
             vault, vault_path = cmd_init(vault_path)
@@ -456,10 +553,12 @@ def main_menu():
             vault = cmd_verify(vault, vault_path)
         elif c == '10':
             vault = cmd_recovery_create(vault, vault_path)
-        elif c == '11':
+        elif c == "11":
+            vault, vault_path = cmd_recover(vault_path)
+        elif c == '12':
             vault_path = choose_vault_path(vault_path)
             pause()
-        elif c == '12':
+        elif c == '13':
             cmd_lock(vault)
             vault = None
         elif c == '0':
