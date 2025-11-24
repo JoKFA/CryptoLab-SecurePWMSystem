@@ -1,0 +1,14 @@
+# Minimal dependencies for SecurePWM
+# Focus: Educational, understandable, secure
+
+# Only ONE crypto library - cryptography (has everything we need)
+cryptography>=41.0.0
+
+# Recovery shares (Shamir Secret Sharing)
+shamir-mnemonic>=0.2.2
+
+# CLI (simple interface)
+# We'll use argparse (built-in) instead of Typer - zero dependency!
+
+# Development only
+pytest>=7.4.0
