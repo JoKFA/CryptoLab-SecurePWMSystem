@@ -376,9 +376,9 @@ def cmd_verify(vault, vault_path):
         return None
     try:
         if vault.verify_audit_log():
-            print(" Audit log intact!")
+            print("Audit log intact!")
         else:
-            print("✗ TAMPERED!")
+            print("TAMPERED!")
     except Exception as e:
         print(f"ERROR: {e}")
     pause()
@@ -505,7 +505,7 @@ def cmd_lock(vault):
     print("=== Lock Vault ===\n")
     if vault:
         vault.lock()
-        print(" Locked.")
+        print("Locked.")
     else:
         print("Not open.")
     pause()
