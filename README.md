@@ -1,9 +1,7 @@
 # SecurePWM – Zero‑Knowledge Password Manager (course project)
 
-SecurePWM is a small, inspectable password manager I wrote for a cryptography course.  
+SecurePWM is a small, inspectable password manager wrote for cryptography course.  
 All encryption happens on the client side, and the code is meant to be readable enough that you can trace every step: key derivation, encryption, audit logging, and recovery.
-
-The goal is not to ship a production password manager, but to have a realistic toy that is easy to demo and reason about.
 
 ---
 
@@ -212,16 +210,6 @@ pytest -q
 ```
 
 ---
-
-## 9. How I expect you to evaluate this
-
-If you are reading this for grading or review, these are the fastest ways to see what matters:
-
-- Run `python demo.py` once to see the “happy path” (init, add, list, search, decrypt, recovery shares) with short explanations.
-- Run `python attack_demo.py` to see the core defenses (metadata binding, audit chain, recovery with insufficient shares) fail in the right places.
-- Run `python test_simple.py` to get a quick automated sanity check over the crypto and vault flows.
-- For design/crypto details, read `SECURITY_OVERVIEW.md` first, then look at `docs/USER_GUIDE.md`, `docs/ARCHITECTURE.md`, and `docs/TRACEABILITY.md` if you want more depth or code references.
-
 
 ## 8. Security notes (high‑level)
 
