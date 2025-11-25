@@ -560,6 +560,8 @@ def main_menu():
         elif c == "11":
             vault, vault_path = cmd_recover(vault_path)
         elif c == '12':
+            clear_screen()
+            print("FYI: This feature is to move to different path not transferring db file")
             vault_path = choose_vault_path(vault_path)
             pause()
         elif c == '13':

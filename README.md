@@ -225,6 +225,7 @@ And it explicitly does **not** try to defend against:
 - Keyloggers on the host.
 - Someone with physical access while the vault is unlocked.
 - Clipboard sniffing once a password has been copied.
+- Adversary deletes the database file or entries in the database
 
 For more details, including which fields are in the AEAD Associated Data and exactly what the audit MAC covers, see `SECURITY_OVERVIEW.md`.
 
