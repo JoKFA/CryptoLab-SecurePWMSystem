@@ -142,7 +142,9 @@ Typical first‑time flow:
    - `8) Delete entry` (soft delete by default, with an option for hard delete).
    - `9) Verify audit log` to check that the tamper‑evident log is intact.
    - `10) Create recovery kit` to generate Shamir shares for the recovery key.
-   - `12) Lock vault` to wipe keys from memory when you are done.
+   -  `11) Recover vault` to recover the vault with recovery key.
+   - `12) Change vault path` to change to different path to create new vault or use other vaults.
+   - `13) Lock vault` to wipe keys from memory when you are done.
 
 You can exit from the main menu with `0) Exit`.
 
