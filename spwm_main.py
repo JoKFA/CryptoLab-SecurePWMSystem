@@ -64,6 +64,10 @@ def cmd_init(vault_path):
     clear_screen()
     print("=== Initialize New Vault ===\n")
     vault_path = choose_vault_path(vault_path)
+    
+    if os.path.isdir(vault_path):
+        vault_path = os.path.join(vault_path, "vault.db")
+        
     if os.path.exists(vault_path):
         print(f"\nVault exists at: {vault_path}")
         pause()
@@ -153,11 +157,11 @@ def cmd_list_entries(vault, vault_path):
         if not entries:
             print("No entries.")
         else:
-            print(f"{'Username':<22}  {'Site':<20}  {'Category':<12}  {'ID (first 8)'}")
+            print(f"{'Username':<22}  {'Site':<20}  {'Category':<12}  {'ID'}")
             print("-" * 70)
             for e in entries:
-                short_id = e['id'][:8]
-                print(f"{e['username']:<22}  {e['site_name'] or '-':<20}  {e['category'] or '-':<12}  {short_id}...")
+                # short_id = e['id'][:8]
+                print(f"{e['username']:<22}  {e['site_name'] or '-':<20}  {e['category'] or '-':<12}  {e['id']}")
     except Exception as e:
         print(f"ERROR: {e}")
     pause()

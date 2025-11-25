@@ -109,7 +109,7 @@ def print_recovery_kit(shares: List[List[str]], vault_id: str, k: int) -> str:
 
     output.append("\n\nTo recover:")
     output.append("1. Run: spwm recover")
-    output.append("2. Enter any {k} shares when prompted")
+    output.append(f"2. Enter any {k} shares when prompted")
     output.append("3. Set a new master password\n")
 
     return "\n".join(output)
