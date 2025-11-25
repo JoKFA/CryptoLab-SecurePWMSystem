@@ -49,7 +49,7 @@ def unlock_flow(vault_path):
     vault = Vault(vault_path)
     try:
         vault.unlock(password)
-        print("\n✓ Vault unlocked.")
+        print("\n Vault unlocked.")
         pause()
         return vault
     except Exception as e:
@@ -82,7 +82,7 @@ def cmd_init(vault_path):
     print("\nInitializing...")
     vault = Vault(vault_path)
     vid = vault.initialize(pw)
-    print(f"\n✓ Vault created! ID: {vid}")
+    print(f"\n Vault created! ID: {vid}")
     pause()
     return vault, vault_path
 
@@ -107,7 +107,7 @@ def cmd_add_manual(vault, vault_path):
         return vault
     try:
         eid = vault.add_entry(secret.encode('utf-8'), username, site_name, url, category)
-        print(f"\n✓ Added! ID: {eid}")
+        print(f"\n Added! ID: {eid}")
     except Exception as e:
         print(f"ERROR: {e}")
     pause()
@@ -136,7 +136,7 @@ def cmd_add_generated(vault, vault_path):
     print(f"\nGenerated: {pw}")
     try:
         eid = vault.add_entry(pw.encode('utf-8'), username, site_name, url, category)
-        print(f"\n✓ Added! ID: {eid}")
+        print(f"\n Added! ID: {eid}")
     except Exception as e:
         print(f"ERROR: {e}")
     pause()
@@ -200,7 +200,7 @@ def cmd_get_entry(vault, vault_path):
             try:
                 import pyperclip
                 pyperclip.copy(secret_str)
-                print("\n✓ Copied to clipboard!")
+                print("\n Copied to clipboard!")
             except ImportError:
                 print("\n(pyperclip not installed - run: pip install pyperclip)")
         elif choice == '3':
@@ -208,7 +208,7 @@ def cmd_get_entry(vault, vault_path):
             try:
                 import pyperclip
                 pyperclip.copy(secret_str)
-                print("✓ Also copied to clipboard!")
+                print(" Also copied to clipboard!")
             except ImportError:
                 print("(pyperclip not installed for clipboard)")
         else:
@@ -263,7 +263,7 @@ def cmd_quick_copy(vault, vault_path):
         try:
             import pyperclip
             pyperclip.copy(e['secret'].decode('utf-8'))
-            print(f"\n✓ Password for '{e['username']}' copied to clipboard!")
+            print(f"\n Password for '{e['username']}' copied to clipboard!")
         except ImportError:
             print("\nERROR: pyperclip not installed. Run: pip install pyperclip")
             print(f"Password: {e['secret'].decode('utf-8')}")
@@ -358,7 +358,7 @@ def cmd_delete(vault, vault_path):
         
         hard = input("Permanently delete? [y/N]: ").strip().lower() == 'y'
         vault.delete_entry(eid, hard=hard)
-        print(f"\n✓ Entry deleted{'(permanently)' if hard else ''}.")
+        print(f"\n Entry deleted{'(permanently)' if hard else ''}.")
     except Exception as e:
         print(f"ERROR: {e}")
     pause()
@@ -372,7 +372,7 @@ def cmd_verify(vault, vault_path):
         return None
     try:
         if vault.verify_audit_log():
-            print("✓ Audit log intact!")
+            print(" Audit log intact!")
         else:
             print("✗ TAMPERED!")
     except Exception as e:
@@ -397,7 +397,7 @@ def cmd_recovery_create(vault, vault_path):
         kit = print_recovery_kit(shares, vault.vault_id, k)
         with open(out, 'w') as f:
             f.write(kit)
-        print(f"\n✓ Saved to: {out}")
+        print(f"\n Saved to: {out}")
     except Exception as e:
         print(f"ERROR: {e}")
     pause()
@@ -443,7 +443,7 @@ def cmd_recover(vault_path):
         # Join the words back into a single space-separated string
         share_str = " ".join(share_words)
         shares.append(share_str)
-        print(f"✓ Share {share_num} accepted ({len(share_words)} words)\n")
+        print(f" Share {share_num} accepted ({len(share_words)} words)\n")
         share_num += 1
     
     if len(shares) < 2:
@@ -457,7 +457,7 @@ def cmd_recover(vault_path):
     try:
         from securepwm.recovery import combine_recovery_shares
         recovery_key = combine_recovery_shares(shares)
-        print("✓ Recovery key reconstructed from shares!\n")
+        print(" Recovery key reconstructed from shares!\n")
     except Exception as e:
         print(f"\nERROR: Failed to combine shares: {e}")
         print("Make sure you entered valid shares from the same recovery kit.")
@@ -501,7 +501,7 @@ def cmd_lock(vault):
     print("=== Lock Vault ===\n")
     if vault:
         vault.lock()
-        print("✓ Locked.")
+        print(" Locked.")
     else:
         print("Not open.")
     pause()

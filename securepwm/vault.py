@@ -521,26 +521,26 @@ class Vault:
     
     def recover_vault_with_shares(self, recovered_vault_key: bytes, new_master_password: str) -> None:
         """
-        Recover vault access using recovery key and set new master password.
-        
-        This allows disaster recovery when master password is forgotten:
-        1. User provides k-of-n Shamir shares
-        2. Shares are combined to reconstruct recovery_key
-        3. Vault is "unlocked" using recovery_key directly
-        4. New master password is set (re-encrypts vault with new keys)
-        
+        Recover vault access using a reconstructed 32-byte key and set a new master password.
+
+        This is the second half of the Shamir flow:
+        1. The user provides k-of-n Shamir shares (from the printed kit).
+        2. The CLI combines those shares into a 32-byte secret.
+        3. That secret is treated as the current vault key for this one-time recovery.
+        4. A new master password is chosen, and the vault is re-encrypted under keys derived from it.
+
         Security:
-        - Recovery key must match the one derived during vault initialization
-        - All existing entries are re-encrypted with keys from new master password
-        - Audit log records the recovery event
-        - Old master password becomes invalid
-        
+        - The recovered key must be correct or decryption will fail during verification.
+        - All existing entries are re-encrypted with keys derived from the new master password.
+        - The audit log records the recovery event.
+        - The old master password stops working after this completes.
+
         Args:
-            recovery_key: 32-byte recovery key (from combining Shamir shares)
-            new_master_password: New master password to set
-            
+            recovered_vault_key: 32-byte key reconstructed from Shamir shares.
+            new_master_password: New master password to set.
+
         Raises:
-            Exception: If recovery key is invalid or vault is corrupted
+            Exception: If the recovered key is wrong or the vault is corrupted.
         """
          
         # Connect to database
@@ -565,11 +565,9 @@ class Vault:
         self.aead_algo = row['aead_algo']
         self.kdf_params = json.loads(row['kdf_params'])
         
-        # The recovery_key from Shamir shares is actually the recovery subkey
-        # We need to treat it as the vault_key for this recovery process
-        # (In reality, we should have stored the vault_key encrypted with recovery_key,
-        # but for simplicity we'll use the recovery_key as if it's the vault_key)
-        
+        # In the CLI flow, the Shamir shares are created over the vault key.
+        # Here we take the reconstructed 32-byte value and treat it as the
+        # vault key for this one-time recovery process.
         self.vault_key = recovered_vault_key
         subkeys = crypto.derive_subkeys(self.vault_key)
 
@@ -608,10 +606,10 @@ class Vault:
                     self.schema_version, row['version'], metadata
                 )
                 
-                print("✓ Recovery key verified!")
+                print(" Recovery key verified!")
             else:
                 # No entries to verify, assume key is correct
-                print("✓ Recovery key accepted (no entries to verify)")
+                print(" Recovery key accepted (no entries to verify)")
                 
         except Exception as e:
             raise Exception(f"Invalid recovery key: {e}")
@@ -672,7 +670,7 @@ class Vault:
                 print(f"WARNING: Failed to decrypt entry {row['id']}: {e}")
                 continue
         
-        print(f"✓ Successfully decrypted {decrypted_count} entries")
+        print(f" Successfully decrypted {decrypted_count} entries")
         
         # 2. Generate new salt and derive keys from new master password
         new_salt = os.urandom(16)
@@ -740,12 +738,12 @@ class Vault:
         
         self.conn.commit()
         
-        print(f"✓ Successfully re-encrypted {reencrypted_count} entries")
+        print(f" Successfully re-encrypted {reencrypted_count} entries")
         
         # 5. Log recovery in audit log (with new audit_key)
         self._audit("VAULT_RECOVERY", payload=b"master_password_reset")
     
-        print(f"✓ Vault recovery complete!")
+        print(f" Vault recovery complete!")
         
     def _require_unlocked(self) -> None:
         """Check that vault is unlocked."""
@@ -785,7 +783,7 @@ if __name__ == "__main__":
     # Verify audit log
     print("\nVerifying audit log...")
     if vault.verify_audit_log():
-        print("✓ Audit log is intact!")
+        print(" Audit log is intact!")
     else:
         print("✗ Audit log has been tampered!")
 

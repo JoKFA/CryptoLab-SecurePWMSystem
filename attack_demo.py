@@ -113,7 +113,8 @@ def main():
 
     # 5) Shamir recovery with insufficient shares
     section("Attack 5: Shamir recovery with insufficient shares")
-    shares = generate_recovery_shares(vault.recovery_key, k=3, n=5)
+    # Use the same secret size as the real recovery flow (32-byte key)
+    shares = generate_recovery_shares(vault.vault_key, k=3, n=5)
     try:
         combine_recovery_shares([shares[0], shares[1]])  # only 2 shares
         print("Unexpected: recovered with insufficient shares")

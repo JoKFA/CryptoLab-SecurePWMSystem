@@ -15,6 +15,7 @@ This script simulates what a first-time user would see in the interactive menu
  - Metadata tampering detection
  - Audit log tampering detection
  - Recovery kit generation (Shamir k-of-n)
+ - Recovery flow (re-key with new master password)
  - Password generator samples
  - Locking and cleanup
 
@@ -56,8 +57,9 @@ def menu_snapshot():
     print(" 8) Delete entry")
     print(" 9) Verify audit log")
     print("10) Create recovery kit")
-    print("11) Change vault path")
-    print("12) Lock vault")
+    print("11) Recover vault")
+    print("12) Change vault path")
+    print("13) Lock vault")
     print(" 0) Exit")
 
 
@@ -79,7 +81,7 @@ def main():
         print("Prompt: Enter master password -> user chooses a strong password")
         vault = Vault(db_path)
         vault.initialize(master_password)
-        print("Output: ✅ Vault created!")
+        print("Output: Vault created!")
         explain(
             "Key derivation",
             "scrypt (N=2^17, r=8, p=1) turns password+salt into a 32-byte vault_key (~250 ms, ~16 MB). "
@@ -101,7 +103,7 @@ def main():
             url=url,
             category=category,
         )
-        print(f"Output: ✅ Added! ID: {entry_id_manual}")
+        print(f"Output: Added! ID: {entry_id_manual}")
         explain(
             "Envelope encryption + AD binding",
             "A random entry_key encrypts the secret with AES-GCM; content_key wraps entry_key. "
@@ -122,7 +124,7 @@ def main():
             url="https://mail.example.com",
             category="Personal",
         )
-        print(f"Output: ✅ Added! ID: {entry_id_gen}")
+        print(f"Output: Added! ID: {entry_id_gen}")
 
         # 4) List entries (option 4)
         step("List entries", "4", "securepwm/vault.py:list_entries")
@@ -167,7 +169,7 @@ def main():
         try:
             import pyperclip
             pyperclip.copy(e["secret"].decode())
-            print("UI output: ✅ Copied to clipboard (pyperclip installed)")
+            print("UI output: Copied to clipboard (pyperclip installed)")
         except Exception:
             print("UI output: Clipboard support not installed; would copy this value:")
             print(f"  {e['secret'].decode()}")
@@ -179,7 +181,7 @@ def main():
         # 7) Verify audit log (option 9)
         step("Verify audit log", "9", "securepwm/vault.py:verify_audit_log / securepwm/crypto.py:verify_audit_chain")
         ok = vault.verify_audit_log()
-        print(f"Output: {'✅ Audit log intact' if ok else '❌ Audit log tampered'}")
+        print(f"Output: {'Audit log intact' if ok else 'Audit log tampered'}")
         explain(
             "Audit chain",
             "compute_audit_mac HMACs {seq, ts, action, payload_hash, prev_mac}; verify_audit_chain recomputes and compares. "
@@ -190,7 +192,7 @@ def main():
         step("Delete entry (soft delete)", "8", "securepwm/vault.py:delete_entry")
         print(f"Prompt: choose entry -> deleting {entry_id_gen} (soft delete)")
         vault.delete_entry(entry_id_gen, hard=False)
-        print("UI output: ✅ Entry marked deleted (still in DB, hidden from list/search)")
+        print("UI output: Entry marked deleted (still in DB, hidden from list/search)")
         entries_after_delete = vault.list_entries()
         print("List after delete:")
         for e in entries_after_delete:
@@ -239,21 +241,63 @@ def main():
         conn.close()
         vault.unlock(master_password)
         ok = vault.verify_audit_log()
-        print(f"After tamper, verify: {'✅ intact (unexpected)' if ok else '❌ tampering detected as expected'}")
+        print(f"After tamper, verify: {'intact (unexpected)' if ok else 'tampering detected as expected'}")
 
         # 11) Recovery kit (option 10)
         step("Recovery kit (k-of-n)", "10", "securepwm/recovery.py:generate_recovery_shares")
         k, n = 3, 5
-        shares = generate_recovery_shares(vault.recovery_key, k=k, n=n)
+        # In the real CLI, the recovery kit is created over the vault key.
+        shares = generate_recovery_shares(vault.vault_key, k=k, n=n)
         print(f"Generated {n} shares (need {k} to recover). Sample words per share:")
         for i, share in enumerate(shares, 1):
             print(f"  Share {i}: {' '.join(share[:5])} ...")
-        recovered = combine_recovery_shares([shares[0], shares[2], shares[4]])
-        print(f"Recover with shares 1,3,5 -> {'success' if recovered == vault.recovery_key else 'fail'}")
         explain(
-            "Shamir k-of-n",
-            "Recovery key is split into n shares; any k reconstruct via polynomial interpolation. Fewer than k leak nothing.",
+            "Shamir k-of-n (kit creation)",
+            "The 32-byte vault key is split into n shares; any k reconstruct via polynomial interpolation. Fewer than k leak nothing.",
         )
+
+        # 11b) Recovery flow (option 11)
+        step(
+            "Recover vault with shares",
+            "11",
+            "securepwm/vault.py:recover_vault_with_shares / spwm_main.py:cmd_recover",
+        )
+        print("Simulating loss of the master password and recovery using shares 1,3,5...")
+        new_master_password = "NewMasterPassword123!"
+
+        # Lock the current vault handle to mimic a fresh process, then reconstruct the key
+        vault.lock()
+        recovered_key = combine_recovery_shares([shares[0], shares[2], shares[4]])
+
+        # Perform recovery using a fresh Vault instance (same pattern as the CLI)
+        vault_for_recovery = Vault(db_path)
+        vault_for_recovery.recover_vault_with_shares(recovered_key, new_master_password)
+        vault_for_recovery.lock()
+        print("Recovery call completed (vault re-keyed).")
+
+        # Show that the old master password no longer works
+        print("Checking that the old master password no longer works...")
+        old = Vault(db_path)
+        try:
+            old.unlock(master_password)
+            old.get_entry(entry_id_manual)
+            print("ERROR: old master password still works after recovery")
+        except Exception:
+            print("As expected: old master password fails after recovery.")
+        finally:
+            try:
+                old.lock()
+            except Exception:
+                pass
+
+        # Show that the new master password works and the entry still decrypts
+        print("Checking that the new master password works and entries still decrypt...")
+        new = Vault(db_path)
+        new.unlock(new_master_password)
+        recovered_entry = new.get_entry(entry_id_manual)
+        print(f"Decryption with new master password still returns the secret: {recovered_entry['secret'].decode()}")
+        new.lock()
+
 
         # 12) Password generator samples
         step("Password generator", "-", "securepwm/crypto.py:generate_password")
@@ -265,10 +309,11 @@ def main():
             pwd = crypto.generate_password(length=length, use_symbols=symbols)
             print(f"  {label}: {pwd}")
 
-        # 13) Lock and exit (option 12 then 0)
-        step("Lock and exit", "12 / 0", "securepwm/vault.py:lock")
-        vault.lock()
-        print("Output: ✅ Locked (keys cleared from memory)")
+        # 13) Lock and exit (option 13 then 0)
+        step("Lock and exit", "13 / 0", "securepwm/vault.py:lock")
+        if vault:
+            vault.lock()
+        print("Output: Locked (keys cleared from memory)")
         print("User chooses: 0) Exit")
         print("Goodbye!")
 
